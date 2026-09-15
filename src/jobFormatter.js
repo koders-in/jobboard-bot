@@ -1,4 +1,8 @@
 function formatJob(job) {
+  const description = (job.description || "No description provided.")
+    .replace(/<[^>]*>/g, "")
+    .slice(0, 1500);
+
   return `
 💼 **${job.title}**
 
@@ -6,7 +10,7 @@ function formatJob(job) {
 📍 **Location:** ${job.location || "Remote"}
 🔗 **Apply:** ${job.url}
 
-📝 **Description:** ${job.description || "No description provided."}
+📝 **Description:** ${description}
 `;
 }
 
