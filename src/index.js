@@ -72,7 +72,7 @@ client.once("ready", async () => {
       }
 
       try {
-        await channel.send(formatJob(job));
+        await channel.send({ embeds: [formatJob(job)] });
 
         postedJobs.push(job.url);
         newJobsPosted++;
