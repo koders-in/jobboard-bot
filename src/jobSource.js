@@ -52,5 +52,25 @@ const response = await fetch(sourceUrl);
     }))
     .filter((job) => job.category !== "Other");
 }
+async function checkSourceHealth() {
+  try {
+    const sourceUrl =
+      process.env.JOB_SOURCE_URL || "https://remoteok.com/api";
 
-module.exports = { fetchJobs, categorizeJob };
+    const response = await fetch(sourceUrl);
+
+    if (!response.ok) {
+      console.error(
+        `[HEALTH] Job source is unhealthy: HTTP ${response.status}`
+      );
+      return false;
+    }
+
+    console.log("[HEALTH] Job source is healthy");
+    return true;
+  } catch (error) {
+    console.error("[HEALTH] Job source is unreachable:", error);
+    return false;
+  }
+}
+module.exports = { fetchJobs, categorizeJob, checkSourceHealth };
