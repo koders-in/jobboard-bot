@@ -1,3 +1,29 @@
+function categorizeJob(title, description) {
+  const text = `${title} ${description}`.toLowerCase();
+
+  if (
+    /developer|engineer|software|frontend|backend|full.?stack|javascript|react|node|python|java|flutter|devops|data|qa|testing|cyber|cloud/.test(
+      text
+    )
+  ) {
+    return "Technology";
+  }
+
+  if (
+    /designer|ui|ux|graphic|figma|visual|product design/.test(text)
+  ) {
+    return "Design";
+  }
+
+  if (
+    /content|writer|copywriter|editor|technical writer|blog/.test(text)
+  ) {
+    return "Content";
+  }
+
+  return "Other";
+}
+
 async function fetchJobs() {
   const response = await fetch("https://remoteok.com/api");
 
@@ -11,15 +37,19 @@ async function fetchJobs() {
     .filter((job) => job.position)
     .filter((job) => {
       const location = (job.location || "").toLowerCase();
-      return location.includes("india");
+      const tags = (job.tags || []).join(" ").toLowerCase();
+
+      return location.includes("india") || tags.includes("india");
     })
     .map((job) => ({
       title: job.position,
       company: job.company,
-      location: job.location,
+      location: job.location || "India",
       url: job.url,
       description: job.description || "",
       category: categorizeJob(job.position, job.description || "")
     }))
     .filter((job) => job.category !== "Other");
 }
+
+module.exports = { fetchJobs };
