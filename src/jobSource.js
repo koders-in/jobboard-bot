@@ -1,3 +1,11 @@
+function validateJob(job) {
+  return Boolean(
+    job.title &&
+    job.company &&
+    job.url &&
+    job.category
+  );
+}
 function categorizeJob(title, description) {
   const text = `${title} ${description}`.toLowerCase();
 
@@ -50,6 +58,7 @@ const response = await fetch(sourceUrl);
       description: job.description || "",
       category: categorizeJob(job.position, job.description || "")
     }))
+    .filter(validateJob)
     .filter((job) => job.category !== "Other");
 }
 async function checkSourceHealth() {
