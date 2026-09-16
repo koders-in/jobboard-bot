@@ -25,7 +25,8 @@ function categorizeJob(title, description) {
 }
 
 async function fetchJobs() {
-  const response = await fetch("https://remoteok.com/api");
+ const sourceUrl = process.env.JOB_SOURCE_URL || "https://remoteok.com/api";
+const response = await fetch(sourceUrl);
 
   if (!response.ok) {
     throw new Error("Failed to fetch jobs");
