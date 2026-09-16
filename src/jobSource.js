@@ -52,4 +52,4 @@ async function fetchJobs() {
     .filter((job) => job.category !== "Other");
 }
 
-module.exports = { fetchJobs };
+module.exports = { fetchJobs, categorizeJob };
