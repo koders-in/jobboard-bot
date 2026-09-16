@@ -11,28 +11,48 @@ const client = new Client({
 
 const POSTED_JOBS_FILE = "./postedJobs.json";
 
-function loadPostedJobs() {
-  if (!fs.existsSync(POSTED_JOBS_FILE)) {
-    return [];
-  }
-
-  return JSON.parse(fs.readFileSync(POSTED_JOBS_FILE, "utf8"));
+function logInfo(message) {
+  console.log(`[INFO] ${new Date().toISOString()} - ${message}`);
 }
 
-function savePostedJobs(postedJobs) {
-  fs.writeFileSync(
-    POSTED_JOBS_FILE,
-    JSON.stringify(postedJobs, null, 2)
+function logError(message, error) {
+  console.error(
+    `[ERROR] ${new Date().toISOString()} - ${message}`,
+    error
   );
 }
 
+function loadPostedJobs() {
+  try {
+    if (!fs.existsSync(POSTED_JOBS_FILE)) {
+      return [];
+    }
+
+    return JSON.parse(fs.readFileSync(POSTED_JOBS_FILE, "utf8"));
+  } catch (error) {
+    logError("Failed to load posted jobs", error);
+    return [];
+  }
+}
+
+function savePostedJobs(postedJobs) {
+  try {
+    fs.writeFileSync(
+      POSTED_JOBS_FILE,
+      JSON.stringify(postedJobs, null, 2)
+    );
+  } catch (error) {
+    logError("Failed to save posted jobs", error);
+  }
+}
+
 client.once("ready", async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  logInfo(`Logged in as ${client.user.tag}`);
 
   try {
     const jobs = await fetchJobs();
 
-    console.log(`Fetched ${jobs.length} jobs`);
+    logInfo(`Fetched ${jobs.length} jobs`);
 
     const channel = await client.channels.fetch(
       process.env.DISCORD_CHANNEL_ID
@@ -47,22 +67,42 @@ client.once("ready", async () => {
 
     for (const job of jobs.slice(0, 5)) {
       if (postedJobs.includes(job.url)) {
-        console.log(`Skipping duplicate job: ${job.title}`);
+        logInfo(`Skipping duplicate job: ${job.title}`);
         continue;
       }
 
-      await channel.send(formatJob(job));
+      try {
+        await channel.send(formatJob(job));
 
-      postedJobs.push(job.url);
-      newJobsPosted++;
+        postedJobs.push(job.url);
+        newJobsPosted++;
+
+        logInfo(`Posted job: ${job.title}`);
+      } catch (error) {
+        logError(`Failed to post job: ${job.title}`, error);
+      }
     }
 
     savePostedJobs(postedJobs);
 
-    console.log(`${newJobsPosted} new jobs posted successfully`);
+    logInfo(`${newJobsPosted} new jobs posted successfully`);
   } catch (error) {
-    console.error("Failed to fetch or post jobs:", error);
+    logError("Failed to fetch or process jobs", error);
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.on("error", (error) => {
+  logError("Discord client error", error);
+});
+
+process.on("unhandledRejection", (error) => {
+  logError("Unhandled promise rejection", error);
+});
+
+process.on("uncaughtException", (error) => {
+  logError("Uncaught exception", error);
+});
+
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  logError("Failed to login to Discord", error);
+});
