@@ -1,7 +1,16 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const fs = require("fs");
 require("dotenv").config();
+const requiredEnvVars = [
+  "DISCORD_TOKEN",
+  "DISCORD_CHANNEL_ID",
+];
 
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
 const { fetchJobs } = require("./jobSource");
 const { formatJob } = require("./jobFormatter");
 
