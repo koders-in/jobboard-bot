@@ -81,7 +81,22 @@ client.once("ready", async () => {
       }
 
       try {
-        await channel.send({ embeds: [formatJob(job)] });
+        async function sendWithRetry(channel, content, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await channel.send(content);
+    } catch (error) {
+      logError(`Attempt ${attempt} failed to post job`, error);
+
+      if (attempt === retries) {
+        throw error;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+}
+        await sendWithRetry(channel, { embeds: [formatJob(job)] });
 
         postedJobs.push(job.url);
         newJobsPosted++;
