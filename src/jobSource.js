@@ -83,6 +83,7 @@ const response = await fetch(sourceUrl);
     .filter((job) => !isJobExpired(job))
     .filter((job) => job.category !== "Other")
   .filter((job) => matchesKeyword(job, process.env.JOB_KEYWORD));
+  .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 }
 async function checkSourceHealth() {
   try {
@@ -105,4 +106,14 @@ async function checkSourceHealth() {
     return false;
   }
 }
-module.exports = { fetchJobs, categorizeJob, checkSourceHealth };
+function sortJobs(jobs) {
+  return jobs.sort((a, b) => {
+    return new Date(b.date || 0) - new Date(a.date || 0);
+  });
+}
+module.exports = {
+  fetchJobs,
+  categorizeJob,
+  checkSourceHealth,
+  sortJobs
+};
