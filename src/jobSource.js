@@ -10,6 +10,14 @@ function isJobExpired(job) {
 
   return jobDate < expiryDate;
 }
+function matchesKeyword(job, keyword) {
+  if (!keyword) {
+    return true;
+  }
+
+  const text = `${job.title} ${job.description} ${job.company}`.toLowerCase();
+  return text.includes(keyword.toLowerCase());
+}
 function validateJob(job) {
   return Boolean(
     job.title &&
@@ -73,7 +81,8 @@ const response = await fetch(sourceUrl);
     }))
     .filter(validateJob)
     .filter((job) => !isJobExpired(job))
-    .filter((job) => job.category !== "Other");
+    .filter((job) => job.category !== "Other")
+  .filter((job) => matchesKeyword(job, process.env.JOB_KEYWORD));
 }
 async function checkSourceHealth() {
   try {
