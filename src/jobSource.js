@@ -82,7 +82,7 @@ const response = await fetch(sourceUrl);
     .filter(validateJob)
     .filter((job) => !isJobExpired(job))
     .filter((job) => job.category !== "Other")
-  .filter((job) => matchesKeyword(job, process.env.JOB_KEYWORD));
+  .filter((job) => matchesKeyword(job, process.env.JOB_KEYWORD))
   .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 }
 async function checkSourceHealth() {
