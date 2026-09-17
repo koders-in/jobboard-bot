@@ -19,6 +19,31 @@ const client = new Client({
 });
 
 const POSTED_JOBS_FILE = "./postedJobs.json";
+const APPLICATIONS_FILE = "./applications.json";
+
+function loadApplications() {
+  try {
+    if (!fs.existsSync(APPLICATIONS_FILE)) {
+      return [];
+    }
+
+    return JSON.parse(fs.readFileSync(APPLICATIONS_FILE, "utf8"));
+  } catch (error) {
+    logError("Failed to load applications", error);
+    return [];
+  }
+}
+
+function saveApplications(applications) {
+  try {
+    fs.writeFileSync(
+      APPLICATIONS_FILE,
+      JSON.stringify(applications, null, 2)
+    );
+  } catch (error) {
+    logError("Failed to save applications", error);
+  }
+}
 const PAGE_SIZE = 5;
 
 function paginateJobs(jobs, page = 1) {
@@ -135,7 +160,23 @@ process.on("unhandledRejection", (error) => {
 process.on("uncaughtException", (error) => {
   logError("Uncaught exception", error);
 });
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isCommand()) return;
 
+  if (interaction.commandName === "apply") {
+    const applications = loadApplications();
+
+    applications.push({
+      userId: interaction.user.id,
+      jobId: interaction.options.getString("jobId"),
+      appliedAt: new Date().toISOString(),
+    });
+
+    saveApplications(applications);
+
+    await interaction.reply("✅ Your job application has been recorded.");
+  }
+});
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
   logError("Failed to login to Discord", error);
 });
