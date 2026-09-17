@@ -19,7 +19,12 @@ const client = new Client({
 });
 
 const POSTED_JOBS_FILE = "./postedJobs.json";
+const PAGE_SIZE = 5;
 
+function paginateJobs(jobs, page = 1) {
+  const start = (page - 1) * PAGE_SIZE;
+  return jobs.slice(start, start + PAGE_SIZE);
+}
 function logInfo(message) {
   console.log(`[INFO] ${new Date().toISOString()} - ${message}`);
 }
@@ -74,7 +79,7 @@ client.once("ready", async () => {
     const postedJobs = loadPostedJobs();
     let newJobsPosted = 0;
 
-    for (const job of jobs.slice(0, 5)) {
+    for (const job of paginateJobs(jobs, 1)) {
       if (postedJobs.includes(job.url)) {
         logInfo(`Skipping duplicate job: ${job.title}`);
         continue;
