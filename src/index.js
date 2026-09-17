@@ -25,6 +25,11 @@ function paginateJobs(jobs, page = 1) {
   const start = (page - 1) * PAGE_SIZE;
   return jobs.slice(start, start + PAGE_SIZE);
 }
+async function notifyNewJob(channel, job) {
+  await channel.send(
+    `🔔 **New Job Alert!**\n\n💼 **${job.title}**\n🏢 ${job.company}\n📍 ${job.location}`
+  );
+}
 function logInfo(message) {
   console.log(`[INFO] ${new Date().toISOString()} - ${message}`);
 }
@@ -101,8 +106,7 @@ client.once("ready", async () => {
     }
   }
 }
-        await sendWithRetry(channel, { embeds: [formatJob(job)] });
-
+await notifyIfNewJob(channel, job);
         postedJobs.push(job.url);
         newJobsPosted++;
 
