@@ -1,3 +1,15 @@
+function isJobExpired(job) {
+  if (!job.date) {
+    return false;
+  }
+
+  const jobDate = new Date(job.date);
+  const expiryDate = new Date();
+
+  expiryDate.setDate(expiryDate.getDate() - 30);
+
+  return jobDate < expiryDate;
+}
 function validateJob(job) {
   return Boolean(
     job.title &&
@@ -55,10 +67,12 @@ const response = await fetch(sourceUrl);
       company: job.company,
       location: job.location || "India",
       url: job.url,
+      date: job.date,
       description: job.description || "",
       category: categorizeJob(job.position, job.description || "")
     }))
     .filter(validateJob)
+    .filter((job) => !isJobExpired(job))
     .filter((job) => job.category !== "Other");
 }
 async function checkSourceHealth() {
