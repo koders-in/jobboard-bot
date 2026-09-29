@@ -1,3 +1,5 @@
+const { fetchAdzunaJobs } = require("./sources/adzuna")
+
 function isJobExpired(job) {
   if (!job.date) {
     return false;
@@ -53,8 +55,8 @@ function categorizeJob(title, description) {
 }
 
 async function fetchJobs() {
- const sourceUrl = process.env.JOB_SOURCE_URL || "https://remoteok.com/api";
-const response = await fetch(sourceUrl);
+  const sourceUrl = process.env.JOB_SOURCE_URL || "https://remoteok.com/api";
+  const response = await fetch(sourceUrl);
 
   if (!response.ok) {
     throw new Error("Failed to fetch jobs");
@@ -62,7 +64,7 @@ const response = await fetch(sourceUrl);
 
   const jobs = await response.json();
 
-  return jobs
+  const remoteOkJobs = jobs
     .filter((job) => job.position)
     .filter((job) => {
       const location = (job.location || "").toLowerCase();
@@ -78,12 +80,24 @@ const response = await fetch(sourceUrl);
       date: job.date,
       description: job.description || "",
       category: categorizeJob(job.position, job.description || "")
-    }))
+    }));
+
+  let adzunaJobs = [];
+  try {
+    adzunaJobs = (await fetchAdzunaJobs()).map((job) => ({
+      ...job,
+      category: categorizeJob(job.title, job.description || ""),
+    }));
+  } catch (error) {
+    console.error("[ADZUNA] Failed to fetch jobs:", error);
+  }
+
+  return [...remoteOkJobs, ...adzunaJobs]
     .filter(validateJob)
     .filter((job) => !isJobExpired(job))
     .filter((job) => job.category !== "Other")
-  .filter((job) => matchesKeyword(job, process.env.JOB_KEYWORD))
-  .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    .filter((job) => matchesKeyword(job, process.env.JOB_KEYWORD))
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 }
 async function checkSourceHealth() {
   try {
