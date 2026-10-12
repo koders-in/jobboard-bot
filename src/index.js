@@ -1,70 +1,32 @@
-const { Client, GatewayIntentBits } = require("discord.js");
-const fs = require("fs");
-require("dotenv").config();
-const requiredEnvVars = [
-  "DISCORD_TOKEN",
-  "DISCORD_CHANNEL_ID",
-];
+const {
+  Client,
+  GatewayIntentBits
+} = require("discord.js");
 
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    throw new Error(`Missing required environment variable: ${envVar}`);
-  }
-}
+const fs = require("fs");
+const path = require("path");
+
 const { fetchJobs } = require("./jobSource");
 const { formatJob } = require("./jobFormatter");
 
+const TOKEN = process.env.DISCORD_TOKEN;
+const CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
+
+const CHECK_INTERVAL = 30 * 60 * 1000;
+const POSTED_JOBS_FILE = path.join(__dirname, "..", "postedJobs.json");
+
+if (!TOKEN || !CHANNEL_ID) {
+  console.error(
+    "Missing DISCORD_TOKEN or DISCORD_CHANNEL_ID environment variable."
+  );
+  process.exit(1);
+}
+
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds]
 });
 
-const POSTED_JOBS_FILE = "./postedJobs.json";
-const APPLICATIONS_FILE = "./applications.json";
-
-function loadApplications() {
-  try {
-    if (!fs.existsSync(APPLICATIONS_FILE)) {
-      return [];
-    }
-
-    return JSON.parse(fs.readFileSync(APPLICATIONS_FILE, "utf8"));
-  } catch (error) {
-    logError("Failed to load applications", error);
-    return [];
-  }
-}
-
-function saveApplications(applications) {
-  try {
-    fs.writeFileSync(
-      APPLICATIONS_FILE,
-      JSON.stringify(applications, null, 2)
-    );
-  } catch (error) {
-    logError("Failed to save applications", error);
-  }
-}
-const PAGE_SIZE = 5;
-
-function paginateJobs(jobs, page = 1) {
-  const start = (page - 1) * PAGE_SIZE;
-  return jobs.slice(start, start + PAGE_SIZE);
-}
-async function notifyNewJob(channel, job) {
-  await channel.send(
-    `🔔 **New Job Alert!**\n\n💼 **${job.title}**\n🏢 ${job.company}\n📍 ${job.location}`
-  );
-}
-function logInfo(message) {
-  console.log(`[INFO] ${new Date().toISOString()} - ${message}`);
-}
-
-function logError(message, error) {
-  console.error(
-    `[ERROR] ${new Date().toISOString()} - ${message}`,
-    error
-  );
-}
+let isChecking = false;
 
 function loadPostedJobs() {
   try {
@@ -72,111 +34,114 @@ function loadPostedJobs() {
       return [];
     }
 
-    return JSON.parse(fs.readFileSync(POSTED_JOBS_FILE, "utf8"));
+    const data = JSON.parse(
+      fs.readFileSync(POSTED_JOBS_FILE, "utf8")
+    );
+
+    return Array.isArray(data) ? data : [];
   } catch (error) {
-    logError("Failed to load posted jobs", error);
+    console.error("[JOBS] Could not read postedJobs.json:", error.message);
     return [];
   }
 }
 
-function savePostedJobs(postedJobs) {
+function savePostedJobs(jobs) {
   try {
     fs.writeFileSync(
       POSTED_JOBS_FILE,
-      JSON.stringify(postedJobs, null, 2)
+      JSON.stringify(jobs, null, 2),
+      "utf8"
     );
   } catch (error) {
-    logError("Failed to save posted jobs", error);
+    console.error("[JOBS] Could not save postedJobs.json:", error.message);
   }
 }
 
-client.once("ready", async () => {
-  logInfo(`Logged in as ${client.user.tag}`);
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function checkAndPostJobs() {
+  if (isChecking) {
+    console.log("[JOBS] Previous check is still running. Skipping this run.");
+    return;
+  }
+
+  isChecking = true;
 
   try {
+    console.log("[JOBS] Checking job sources...");
+
     const jobs = await fetchJobs();
 
-    logInfo(`Fetched ${jobs.length} jobs`);
+    console.log(`[JOBS] ${jobs.length} eligible jobs found.`);
 
-    const channel = await client.channels.fetch(
-      process.env.DISCORD_CHANNEL_ID
-    );
+    const channel = await client.channels.fetch(CHANNEL_ID);
 
-    if (!channel) {
-      throw new Error("Discord channel not found");
+    if (!channel || !channel.isTextBased()) {
+      throw new Error("The configured Discord channel is unavailable.");
     }
 
     const postedJobs = loadPostedJobs();
+    const postedSet = new Set(postedJobs);
+
     let newJobsPosted = 0;
 
-    for (const job of paginateJobs(jobs, 1)) {
-      if (postedJobs.includes(job.url)) {
-        logInfo(`Skipping duplicate job: ${job.title}`);
+    for (const job of jobs) {
+      if (postedSet.has(job.url)) {
+        console.log(`[JOBS] Duplicate skipped: ${job.title}`);
         continue;
       }
 
       try {
-        async function sendWithRetry(channel, content, retries = 3) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      return await channel.send(content);
-    } catch (error) {
-      logError(`Attempt ${attempt} failed to post job`, error);
+        await channel.send({
+          embeds: [formatJob(job)]
+        });
 
-      if (attempt === retries) {
-        throw error;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-  }
-}
-await notifyIfNewJob(channel, job);
+        postedSet.add(job.url);
         postedJobs.push(job.url);
         newJobsPosted++;
 
-        logInfo(`Posted job: ${job.title}`);
+        savePostedJobs(postedJobs);
+
+        console.log(`[JOBS] Posted: ${job.title}`);
+
+        // Small delay to reduce the chance of hitting Discord rate limits.
+        await wait(1200);
       } catch (error) {
-        logError(`Failed to post job: ${job.title}`, error);
+        console.error(
+          `[JOBS] Could not post "${job.title}":`,
+          error.message
+        );
       }
     }
 
-    savePostedJobs(postedJobs);
-
-    logInfo(`${newJobsPosted} new jobs posted successfully`);
+    console.log(`[JOBS] Check complete. ${newJobsPosted} new jobs posted.`);
   } catch (error) {
-    logError("Failed to fetch or process jobs", error);
+    console.error("[JOBS] Job check failed:", error.message);
+  } finally {
+    isChecking = false;
   }
+}
+
+client.once("ready", async () => {
+  console.log(`[BOT] Logged in as ${client.user.tag}`);
+
+  await checkAndPostJobs();
+
+  setInterval(() => {
+    checkAndPostJobs();
+  }, CHECK_INTERVAL);
+
+  console.log("[BOT] Automatic job checks are scheduled every 30 minutes.");
 });
 
 client.on("error", (error) => {
-  logError("Discord client error", error);
+  console.error("[BOT] Discord client error:", error.message);
 });
 
 process.on("unhandledRejection", (error) => {
-  logError("Unhandled promise rejection", error);
+  console.error("[BOT] Unhandled rejection:", error);
 });
 
-process.on("uncaughtException", (error) => {
-  logError("Uncaught exception", error);
-});
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isCommand()) return;
-
-  if (interaction.commandName === "apply") {
-    const applications = loadApplications();
-
-    applications.push({
-      userId: interaction.user.id,
-      jobId: interaction.options.getString("jobId"),
-      appliedAt: new Date().toISOString(),
-    });
-
-    saveApplications(applications);
-
-    await interaction.reply("✅ Your job application has been recorded.");
-  }
-});
-client.login(process.env.DISCORD_TOKEN).catch((error) => {
-  logError("Failed to login to Discord", error);
-});
+client.login(TOKEN);
